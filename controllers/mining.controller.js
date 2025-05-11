@@ -2,12 +2,9 @@ const Mining = require('../models/mining/mining.model');
 const Boost = require('../models/mining/boost.model');
 const Reward = require('../models/UserReward');
 
-const NORMAL_RATE = 8.33; // Points per minute for normal mining
-const BOOSTED_RATE = 41.65; // Points per minute for boosted mining
-
-// const NORMAL_RATE = 8.33; // Points per minute for normal mining
-// const BOOSTED_RATE = 83.33; // Points per minute for boosted mining
-
+const NORMAL_RATE = 8.33;
+const BOOSTED_RATE = 41.66; 
+const MAX_MINING_DURATION = 3 * 60 * 60 * 1000; 
 
 // Start mining session
 const startMining = async (req, res) => {
@@ -64,41 +61,116 @@ const boostMining = async (req, res) => {
   res.status(200).json({ message: 'Boost activated!', sessionId: miningSession._id });
 };
 
-
-// cron controller Update points every 10 minutes
 const updatePoints = async () => {
-  const currentTime = new Date();
+  try {
+    const currentTime = new Date();
 
-  // Get active mining sessions
-  const activeSessions = await Mining.find({ endTime: { $exists: false } });
+    // Find active mining sessions (not yet ended)
+    const activeSessions = await Mining.find({ endTime: { $exists: false } });
 
-  for (const session of activeSessions) {
-    const lastUpdated = session.lastUpdated || session.startTime;
-    const minutesSinceLastUpdate = Math.floor((currentTime - lastUpdated) / (1000 * 60)); // Time difference in minutes
+    for (const session of activeSessions) {
+      const sessionStart = new Date(session.startTime);
+      const sessionDuration = currentTime - sessionStart;
 
-    // Only process if at least 10 minutes have passed since the last update
-    if (minutesSinceLastUpdate >= 10) {
-      const intervals = Math.floor(minutesSinceLastUpdate / 10); // Number of 10-minute intervals that have passed
-      const rate = session.isBoosted ? BOOSTED_RATE : NORMAL_RATE; // Points rate based on boost status
-      const pointsToAdd = Math.floor(rate * 10) * intervals; // Points to add for each interval
+      // If 3 hours have passed, stop the session
+      if (sessionDuration >= MAX_MINING_DURATION) {
+        const sessionEndTime = new Date(sessionStart.getTime() + MAX_MINING_DURATION);
+        const lastUpdated = session.lastUpdated || session.startTime;
+        const minutesSinceLastUpdate = Math.floor((sessionEndTime - lastUpdated) / (1000 * 60));
 
-      // Update session points incrementally
-      session.points += pointsToAdd;
+        if (minutesSinceLastUpdate >= 10) {
+          const intervals = Math.floor(minutesSinceLastUpdate / 10);
+          const rate = session.isBoosted ? BOOSTED_RATE : NORMAL_RATE;
+          const pointsToAdd = rate * 10 * intervals;
 
-      // Update the 'lastUpdated' timestamp to reflect the last update time
-      session.lastUpdated = new Date(lastUpdated.getTime() + intervals * 10 * 60 * 1000); // Add intervals * 10 minutes to last updated
+          session.points += pointsToAdd;
 
-      // Save updated session
-      await session.save();
+          // Update reward
+          const reward = await Reward.findOne({ userId: session.userId });
+          if (reward) {
+            reward.tsads += pointsToAdd;
+            await reward.save();
+          }
 
-      // Add points to the user's reward schema
-      const reward = await Reward.findOne({ userId: session.userId });
-      if (reward) {
-        reward.tsads += pointsToAdd;
-        await reward.save();
+          console.log(`Final update for user ${session.userId}: +${pointsToAdd} points before session end`);
+        }
+
+        session.endTime = sessionEndTime;
+        session.lastUpdated = sessionEndTime;
+        await session.save();
+
+        console.log(`Stopped mining session for user ${session.userId} after 3 hours.`);
+      } else {
+        // If session is still within 3 hours
+        const lastUpdated = session.lastUpdated || session.startTime;
+        const minutesSinceLastUpdate = Math.floor((currentTime - lastUpdated) / (1000 * 60));
+
+        if (minutesSinceLastUpdate >= 10) {
+          const intervals = Math.floor(minutesSinceLastUpdate / 10);
+          const rate = session.isBoosted ? BOOSTED_RATE : NORMAL_RATE;
+          const pointsToAdd = rate * 10 * intervals;
+
+          session.points += pointsToAdd;
+          session.lastUpdated = new Date(lastUpdated.getTime() + intervals * 10 * 60 * 1000);
+          await session.save();
+
+          // Update reward
+          const reward = await Reward.findOne({ userId: session.userId });
+          if (reward) {
+            reward.tsads += pointsToAdd;
+            await reward.save();
+          }
+
+          console.log(`Updated session for user ${session.userId}: +${pointsToAdd} points (${intervals} intervals)`);
+        } else {
+          console.log(`Skipped session ${session._id} (last updated ${minutesSinceLastUpdate} mins ago)`);
+        }
       }
     }
+
+  } catch (error) {
+    console.error('Error updating mining points:', error);
   }
 };
+
+
+
+
+
+
+// cron controller Update points every 10 minutes
+// const updatePoints = async () => {
+//   const activeSessions = await Mining.find({ endTime: { $exists: false } });
+
+//   activeSessions.forEach(async (session) => {
+//     const currentTime = new Date();
+//     const elapsedTime = (currentTime - session.startTime) / (1000 * 60); // Time in minutes
+//     const pointsToAdd = session.isBoosted ? BOOSTED_RATE : NORMAL_RATE;
+
+//     // Calculate points based on elapsed time and mining rate
+//     const points = pointsToAdd*10;
+
+//     // Update session points
+//     session.points = points;
+//     await session.save();
+
+//     // Add points to the user's reward schema
+//     const reward = await Reward.findOne({ userId: session.userId });
+//     if (reward) {
+//       reward.tsads += points;
+//       await reward.save();
+//     }
+//   });
+// };
+
+
+
+
+
+
+
+
+
+
 
 module.exports={updatePoints,startMining,boostMining}
