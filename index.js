@@ -18,7 +18,6 @@ require("./utiles/cron/weeklyMonthlypoints.cron")
  //require('./bots/telegramBot.js');
 
 
- //testing  main is changed or not
 
 // rate limiter
 const globalLimiter = rateLimit({
