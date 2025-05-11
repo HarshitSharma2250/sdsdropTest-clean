@@ -7,12 +7,16 @@ const admin_routes=require('./routes/admin.routes')
 const logger = require('./utiles/logger')
 const rateLimit = require('express-rate-limit');
 const notificationRoutes=require("./routes/notification.route")
+const miningRoutes=require("./routes/mining.routes")
+
 
 //node cron for rewads every hr
 console.log("🔁 rewardUpdater cron file loaded");
  require('./utiles/cron/rewardUpdater');
  require("./utiles/cron/dailyTask.cron");
 require("./utiles/cron/weeklyMonthlypoints.cron")
+require("./utiles/cron/sessioncleanupmining.cron")
+require("./utiles/cron/updateminingpoints")
 
 //telegram bot
  //require('./bots/telegramBot.js');
@@ -69,7 +73,7 @@ server.use('/home',async(req,res)=>{
 server.use('/user',user_routes)
 server.use('/admin',admin_routes)
  server.use('/admin', notificationRoutes)
-
+ server.use('/user/mining', miningRoutes);
 
 
 //server listening
