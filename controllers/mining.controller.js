@@ -73,7 +73,7 @@ const updatePoints = async () => {
       const sessionDuration = currentTime - sessionStart;
 
       // If 3 hours have passed, stop the session
-      if (sessionDuration >= MAX_MINING_DURATION) {
+      if (sessionDuration >= MAX_MINING_DURATION + 1 * 60 * 1000) {
         const sessionEndTime = new Date(sessionStart.getTime() + MAX_MINING_DURATION);
         const lastUpdated = session.lastUpdated || session.startTime;
         const minutesSinceLastUpdate = Math.floor((sessionEndTime - lastUpdated) / (1000 * 60));
