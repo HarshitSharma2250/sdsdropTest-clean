@@ -12,8 +12,8 @@ const miningRoutes=require("./routes/mining.routes")
 
 //node cron for rewads every hr
 console.log("🔁 rewardUpdater cron file loaded");
- require('./utiles/cron/rewardUpdater');
- require("./utiles/cron/dailyTask.cron");
+require('./utiles/cron/rewardUpdater');
+require("./utiles/cron/dailyTask.cron");
 require("./utiles/cron/weeklyMonthlypoints.cron")
 require("./utiles/cron/sessioncleanupmining.cron")
 require("./utiles/cron/updateminingpoints")

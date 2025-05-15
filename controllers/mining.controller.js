@@ -29,6 +29,7 @@ const startMining = async (req, res) => {
   res.status(200).json({ message: 'Mining session started!', sessionId: newSession._id });
 };
 
+
 // Boost mining session
 const boostMining = async (req, res) => {
   const userId = req.user_detail._id;
@@ -60,6 +61,7 @@ const boostMining = async (req, res) => {
   await newBoost.save();
   res.status(200).json({ message: 'Boost activated!', sessionId: miningSession._id });
 };
+
 
 const updatePoints = async () => {
   try {
@@ -132,8 +134,6 @@ const updatePoints = async () => {
     console.error('Error updating mining points:', error);
   }
 };
-
-
 
 
 
