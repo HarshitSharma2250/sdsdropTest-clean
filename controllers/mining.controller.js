@@ -120,6 +120,9 @@ const updatePoints = async () => {
           const reward = await Reward.findOne({ userId: session.userId });
           if (reward) {
             reward.tsads += pointsToAdd;
+            reward.weeklyTsadsPoints+=pointsToAdd;
+            reward.monthlyTsadsPoints+=pointsToAdd;
+
             await reward.save();
           }
 

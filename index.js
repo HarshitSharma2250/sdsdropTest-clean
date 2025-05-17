@@ -17,7 +17,7 @@ require("./utiles/cron/sessioncleanupmining.cron")
 require("./utiles/cron/updateminingpoints")
 
 //telegram bot
- //require('./bots/telegramBot.js');
+ require('./bots/telegramBot.js');
 
 
 
