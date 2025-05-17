@@ -7,11 +7,8 @@ const fs=require("fs")
 const AdWatchLimit = require("../models/WatchHistory.model");
 const Task=require('../models/DailyTask.model')
 const TaskClaim=require('../models/UserClaimTaskTrack.model');
-const ApiHit=require('../models/Hunting.model')
-const RewardCycleTracker = require("../models/RewardCycleTracker")
 const SocialTask =require("../models/task/socialtaskclaimed.model")
 const mongoose=require('mongoose')
-// const { start } = require('repl');
 
 
 //user onboarding
@@ -717,129 +714,14 @@ const getTask =async (req, res) => {
 };
 
 
-//get button boost gpt
-const Hunting = async (req, res) => {
-  const userId = req.user_detail._id;
-  const { multiPoints, telegramStar } = req.body;
 
-  try {
-    if (![1, 5, 10, 15].includes(multiPoints)) {
-      return res.status(400).json({
-        success: false,
-        msg: "Invalid multiPoints value. Please choose from [1, 5, 10, 15].",
-      });
-    }
 
-    let reward = await RewardSchema.findOne({ userId });
 
-    if (!reward) {
-      reward = new RewardSchema({
-        userId,
-        tsads: 0,
-        monthlyTsadsPoints:0,
-        weeklyTsadsPoints:0,
-        rewardType: "cashback",
-      });
-    }
-
-    const lastApiHit = await ApiHit.findOne({ user_id: userId }).sort({ createdAt: -1 });
-
-    const threeHours = 3 * 60 * 60 * 1000;
-
-    if (lastApiHit && lastApiHit.createdAt) {
-      const timeSinceLastHit = Date.now() - new Date(lastApiHit.createdAt).getTime();
-      if (timeSinceLastHit < threeHours) {
-        return res.status(400).json({
-          success: false,
-          msg: "You already hit the API in the last 3 hours. Please wait before hitting again.",
-        });
-      }
-    }
-
-    const apiHit = await ApiHit.create({
-      user_id: userId,
-      multiPoints,
-      telegramStar,
-    });
-
-    const tracker = new RewardCycleTracker({
-      apiHitId: apiHit._id,
-      active: true,
-    });
-    await tracker.save();
-
-    const oneHour = 60 * 60 * 1000;
-    const startTime = Date.now() + oneHour;
-
-    // Delay full reward cycle by 1 hour
-    setTimeout(() => {
-      let rewardCount = 0;
-
-      const pointInterval = setInterval(async () => {
-        const elapsedTime = Date.now() - startTime;
-
-        if (rewardCount < 3) {
-          reward.tsads += multiPoints * 1000;
-          reward.monthlyTsadsPoints += multiPoints * 1000;
-          reward.weeklyTsadsPoints += multiPoints * 1000;
-          await reward.save();
-          rewardCount++;
-        }
-
-        if (rewardCount >= 3 || elapsedTime >= threeHours) {
-          clearInterval(pointInterval);
-          tracker.active = false;
-          await tracker.save();
-        }
-      }, oneHour); // Every hour
-    }, oneHour); // Initial 1 hour delay
-
-    return res.status(200).json({
-      success: true,
-      msg: `Reward farming started. First reward will be given after 1 hour.`,
-      total: reward.tsads,
-    });
-
-  } catch (err) {
-    console.error("Error in hunting:", err);
-    return res.status(500).json({
-      success: false,
-      msg: "Server error",
-      error: err.message,
-    });
-  }
-};
+module.exports={Register,refresh_token,Update_user_avatar,GetUserInfo,Update_User_Info,UserReward,getUserRewardData,getAllCardDetails,getCardDetails,AllUsers,claimTask,getTask,claimSocialTask}
 
 
 
 
 
-
-
-
-
-
-module.exports={Register,refresh_token,Update_user_avatar,GetUserInfo,Update_User_Info,UserReward,getUserRewardData,getAllCardDetails,getCardDetails,AllUsers,claimTask,getTask,Hunting,claimSocialTask}
-
-
-
-
-// boost logic 
-
-// 1- button 
-
-// tsAds-1000/hr
-// time- 6hr
-
-//auto boost
-// 2- autboost
-
-// data - multiple-1x- 1000
-// multiple-5x- 5000
-// multiple-10x-10000
-// multiple 15x-15000
-
-
-// 3- telegram_star
 
 

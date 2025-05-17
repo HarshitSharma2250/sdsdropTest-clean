@@ -1,5 +1,5 @@
 const{Router}=require("express")
-const { Register, refresh_token, Update_user_avatar, GetUserInfo, Update_User_Info,UserReward, getUserRewardData, getCardDetails, getAllCardDetails, AllUsers, claimTask, getTask, Hunting, claimSocialTask } = require("../controllers/user.controllers")
+const { Register, refresh_token, Update_user_avatar, GetUserInfo, Update_User_Info,UserReward, getUserRewardData, getCardDetails, getAllCardDetails, AllUsers, claimTask, getTask, claimSocialTask } = require("../controllers/user.controllers")
 const { Authentication } = require("../middleware/Authentication.middleware")
 const { upload, processImage } = require("../middleware/avatar.middleware")
 const rateLimit = require('express-rate-limit');
@@ -34,7 +34,6 @@ user_routes.get(`/card`,Authentication,getAllCardDetails)
 user_routes.get('/users',Authentication,AllUsers)
 user_routes.post('/claim-task',Authentication,claimTask)
 user_routes.get('/task',Authentication,getTask)
-user_routes.post('/hunting',Authentication,Hunting)
 user_routes.post('/socialtask-claimed',Authentication,claimSocialTask)
 
 
