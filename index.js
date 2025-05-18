@@ -8,6 +8,7 @@ const logger = require('./utiles/logger')
 const rateLimit = require('express-rate-limit');
 const notificationRoutes=require("./routes/notification.route")
 const miningRoutes=require("./routes/mining.routes")
+const { connectDB } = require('./config/database');
 
 
 //node cron for rewads every hr
@@ -76,14 +77,20 @@ server.use('/user/mining', miningRoutes);
 
 
 
-//server listening
-server.listen(PORT,async()=>{
+const startServer = async () => {
     try {
-        await dataBase_connect()
-        console.log(`Server is UP at Port : ${PORT}`);
+        // Connect to MongoDB
+        await connectDB();
+        
+        // Start the server
+        server.listen(process.env.PORT, () => {
+            console.log(`Server is running on port ${process.env.PORT}`);
+        });
+
     } catch (error) {
-        console.log(error.message);
+        console.error('Failed to start server:', error);
+        process.exit(1);
     }
-}).on('error', (error) => {
-    console.error(`Error starting server: ${error.message}`);
-});
+};
+
+startServer();

@@ -1,11 +1,21 @@
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
 const { MiningService } = require('../services/mining.service');
 const Mining = require('../models/mining/mining.model');
+const { connectDB } = require('../config/database');
+require('dotenv').config();
 
 if (!isMainThread) {
+    let isConnected = false;
+
     // Worker process
     async function handleWorkerTask(task) {
         try {
+            // Ensure database connection
+            if (!isConnected) {
+                await connectDB();
+                isConnected = true;
+            }
+
             switch (task.type) {
                 case 'UPDATE_POINTS':
                     await MiningService.updateAllSessions();
@@ -33,6 +43,7 @@ if (!isMainThread) {
                     throw new Error(`Unknown task type: ${task.type}`);
             }
         } catch (error) {
+            console.error(`Worker error processing ${task.type}:`, error);
             parentPort.postMessage({ 
                 success: false, 
                 error: error.message,
@@ -57,7 +68,11 @@ class MiningWorkerPool {
 
     initialize(numWorkers) {
         for (let i = 0; i < numWorkers; i++) {
-            const worker = new Worker(__filename);
+            const worker = new Worker(__filename, {
+                // Pass environment variables to worker
+                env: process.env
+            });
+            
             this.workers.push({
                 worker,
                 busy: false
@@ -74,7 +89,38 @@ class MiningWorkerPool {
                 this.workers[i].busy = false;
                 this.processNextTask();
             });
+
+            worker.on('exit', (code) => {
+                if (code !== 0) {
+                    console.error(`Worker ${i} stopped with exit code ${code}`);
+                    // Recreate the worker
+                    this.recreateWorker(i);
+                }
+            });
         }
+    }
+
+    recreateWorker(index) {
+        const worker = new Worker(__filename, {
+            env: process.env
+        });
+        
+        this.workers[index] = {
+            worker,
+            busy: false
+        };
+
+        worker.on('message', (result) => {
+            console.log(`Recreated Worker ${index} completed task:`, result);
+            this.workers[index].busy = false;
+            this.processNextTask();
+        });
+
+        worker.on('error', (error) => {
+            console.error(`Recreated Worker ${index} error:`, error);
+            this.workers[index].busy = false;
+            this.processNextTask();
+        });
     }
 
     async processNextTask() {
@@ -102,11 +148,9 @@ class MiningWorkerPool {
 
     async runTask(task) {
         return new Promise((resolve, reject) => {
-            // Find available worker
             const availableWorker = this.workers.find(w => !w.busy);
             
             if (!availableWorker) {
-                // Queue the task if no worker is available
                 this.taskQueue.push({ task, resolve, reject });
                 return;
             }
