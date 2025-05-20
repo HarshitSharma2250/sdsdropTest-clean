@@ -2,7 +2,7 @@ const { MiningService } = require('../services/mining.service');
 const MiningWorkerPool = require('../workers/mining.worker');
 
 // Constants for points per minute to achieve 500 points per hour
-const NORMAL_RATE = 8.33; 
+const NORMAL_RATE = 8.33;
 const BOOSTED_RATE = 41.66; 
 const MAX_MINING_DURATION = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
 const UPDATE_INTERVAL = 10; 
@@ -13,7 +13,7 @@ const workerPool = new MiningWorkerPool(4);
 // Start mining session
 const startMining = async (req, res) => {
   try {
-    const userId = req.user_detail._id;
+  const userId = req.user_detail._id;
     const session = await MiningService.startSession(userId);
     
     // Start processing session in worker
@@ -42,7 +42,7 @@ const startMining = async (req, res) => {
 // Boost mining session
 const boostMining = async (req, res) => {
   try {
-    const userId = req.user_detail._id;
+  const userId = req.user_detail._id;
     const session = await MiningService.boostSession(userId);
     
     // Update session processing in worker
@@ -60,7 +60,7 @@ const boostMining = async (req, res) => {
         success: false,
         message: error.message 
       });
-    }
+  }
     console.error('Error boosting mining session:', error);
     res.status(500).json({ 
       success: false,

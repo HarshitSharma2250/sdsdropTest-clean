@@ -8,11 +8,11 @@ const cleanupExpiredSessions = async () => {
 
   try {
     // Find expired sessions
-    const expiredSessions = await Mining.find({
-      endTime: { $exists: true, $lt: new Date() }
-    });
+  const expiredSessions = await Mining.find({
+    endTime: { $exists: true, $lt: new Date() }
+  });
 
-    if (expiredSessions.length > 0) {
+  if (expiredSessions.length > 0) {
       const expiredSessionIds = expiredSessions.map(session => session._id);
       
       // Delete expired sessions
@@ -22,9 +22,9 @@ const cleanupExpiredSessions = async () => {
 
       const duration = Date.now() - startTime;
       console.log(`[Mining Cleanup] Deleted ${result.deletedCount} expired sessions in ${duration}ms`);
-    } else {
+  } else {
       console.log('[Mining Cleanup] No expired sessions found');
-    }
+  }
   } catch (error) {
     console.error('[Mining Cleanup] Error during cleanup:', error);
   }

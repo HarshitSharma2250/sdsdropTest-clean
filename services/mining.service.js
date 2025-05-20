@@ -150,6 +150,7 @@ class MiningService {
     await session.save();
 
     console.log(`Session finalized with total points: ${session.points.toFixed(2)}`);
+    console.log(`Expected total points for 3 hours: ${(8.33 + (179 * 41.66)).toFixed(2)}`);
   }
 
   static async updateSessionPoints(session, minutesSinceLastUpdate) {
@@ -166,6 +167,7 @@ class MiningService {
     console.log(`- Added ${pointsToAdd.toFixed(2)} points`);
     console.log(`- Processed ${minutesSinceLastUpdate} minutes`);
     console.log(`- New total: ${session.points.toFixed(2)} points`);
+    console.log(`- Expected total after 3 hours: ${(8.33 + (179 * 41.66)).toFixed(2)} points`);
   }
 
   static calculatePoints(session, minutes) {
@@ -180,18 +182,22 @@ class MiningService {
     for (let i = 0; i < minutes; i++) {
       const currentMinute = new Date(sessionStart.getTime() + i * 60 * 1000);
       
-      if (!boostStart || currentMinute < boostStart) {
-        totalPoints += MINING_CONFIG.NORMAL_RATE;
-        normalMinutes++;
-      } else {
+      // Only use boosted rate if session is boosted AND we're past boost start time
+      if (session.isBoosted && boostStart && currentMinute >= boostStart) {
         totalPoints += MINING_CONFIG.BOOSTED_RATE;
         boostedMinutes++;
+      } else {
+        totalPoints += MINING_CONFIG.NORMAL_RATE;
+        normalMinutes++;
       }
     }
     
     console.log(`Point calculation for ${minutes} minutes:`);
+    console.log(`- Session is boosted: ${session.isBoosted}`);
+    console.log(`- Boost start time: ${boostStart ? boostStart.toLocaleString() : 'Not boosted'}`);
     console.log(`- Normal rate minutes: ${normalMinutes} (${(normalMinutes * MINING_CONFIG.NORMAL_RATE).toFixed(2)} points)`);
     console.log(`- Boosted rate minutes: ${boostedMinutes} (${(boostedMinutes * MINING_CONFIG.BOOSTED_RATE).toFixed(2)} points)`);
+    console.log(`- Total points for this update: ${totalPoints.toFixed(2)}`);
     
     return totalPoints;
   }
@@ -216,6 +222,56 @@ class MiningService {
       console.error('Error updating mining points:', error);
       throw error;
     }
+  }
+
+  static async recalculateSessionPoints(sessionId) {
+    const session = await Mining.findById(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    const sessionStart = new Date(session.startTime);
+    const boostStart = session.boostStartTime ? new Date(session.boostStartTime) : null;
+    const sessionEnd = session.endTime || new Date(sessionStart.getTime() + MINING_CONFIG.MAX_DURATION);
+    
+    const totalMinutes = Math.floor((sessionEnd - sessionStart) / (1000 * 60));
+    const boostStartMinutes = boostStart ? Math.floor((boostStart - sessionStart) / (1000 * 60)) : 0;
+    
+    let totalPoints = 0;
+    let normalMinutes = 0;
+    let boostedMinutes = 0;
+    
+    // Calculate points for each minute
+    for (let i = 0; i < totalMinutes; i++) {
+      const currentMinute = new Date(sessionStart.getTime() + i * 60 * 1000);
+      
+      // Only use boosted rate if session is boosted AND we're past boost start time
+      if (session.isBoosted && boostStart && currentMinute >= boostStart) {
+        totalPoints += MINING_CONFIG.BOOSTED_RATE;
+        boostedMinutes++;
+      } else {
+        totalPoints += MINING_CONFIG.NORMAL_RATE;
+        normalMinutes++;
+      }
+    }
+    
+    console.log(`Recalculating points for session ${sessionId}:`);
+    console.log(`- Session is boosted: ${session.isBoosted}`);
+    console.log(`- Boost start time: ${boostStart ? boostStart.toLocaleString() : 'Not boosted'}`);
+    console.log(`- Total minutes: ${totalMinutes}`);
+    console.log(`- Normal rate minutes: ${normalMinutes} (${(normalMinutes * MINING_CONFIG.NORMAL_RATE).toFixed(2)} points)`);
+    console.log(`- Boosted rate minutes: ${boostedMinutes} (${(boostedMinutes * MINING_CONFIG.BOOSTED_RATE).toFixed(2)} points)`);
+    console.log(`- Total points: ${totalPoints.toFixed(2)}`);
+    
+    // Update session points
+    session.points = totalPoints;
+    session.lastUpdated = sessionEnd;
+    await session.save();
+    
+    // Update rewards
+    await this.updateRewards(session.userId, totalPoints - session.points);
+    
+    return session;
   }
 }
 
