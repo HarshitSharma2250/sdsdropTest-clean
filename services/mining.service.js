@@ -22,14 +22,25 @@ class MiningService {
       throw new Error('Active mining session already exists');
     }
 
+    // Create date with local timezone
+    const now = new Date();
+    const startTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
+    
+    console.log('Creating new mining session:');
+    console.log('- Local time:', startTime.toLocaleString());
+    console.log('- Expected end time:', new Date(startTime.getTime() + MINING_CONFIG.MAX_DURATION).toLocaleString());
+    console.log('- Timezone offset:', now.getTimezoneOffset());
+
     const newSession = new Mining({
       userId,
-      startTime: new Date(),
+      startTime: startTime,
       points: 0,
-      isBoosted: false
+      isBoosted: false,
+      lastUpdated: startTime
     });
 
     await newSession.save();
+    console.log('Session created with ID:', newSession._id);
     return newSession;
   }
 
@@ -48,16 +59,25 @@ class MiningService {
       throw new Error('Boost already activated');
     }
 
+    // Create boost time with local timezone
+    const now = new Date();
+    const boostTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
+    
+    console.log('Boosting mining session:');
+    console.log('- Local boost time:', boostTime.toLocaleString());
+    console.log('- Timezone offset:', now.getTimezoneOffset());
+    console.log('- ISO string:', boostTime.toISOString());
+
     // Update mining session
     miningSession.isBoosted = true;
-    miningSession.boostStartTime = new Date();
+    miningSession.boostStartTime = boostTime;
     await miningSession.save();
 
     // Create boost record
     const newBoost = new Boost({
       userId,
       isBoosted: true,
-      boostTime: new Date()
+      boostTime: boostTime
     });
     await newBoost.save();
 
@@ -80,15 +100,26 @@ class MiningService {
     const sessionStart = new Date(session.startTime);
     const sessionDuration = currentTime - sessionStart;
     const lastUpdated = session.lastUpdated || session.startTime;
+    const minutesSinceLastUpdate = Math.floor((currentTime - lastUpdated) / (1000 * 60));
 
-    // Check if session should end
-    if (sessionDuration >= MINING_CONFIG.MAX_DURATION + MINING_CONFIG.BUFFER_TIME) {
+    // Log session status
+    console.log(`Processing session for user ${session.userId}:`);
+    console.log(`- Session duration: ${Math.floor(sessionDuration / (1000 * 60))} minutes`);
+    console.log(`- Time since last update: ${minutesSinceLastUpdate} minutes`);
+    console.log(`- Current points: ${session.points.toFixed(2)}`);
+    console.log(`- Is boosted: ${session.isBoosted}`);
+    console.log(`- Session start: ${sessionStart.toLocaleString()}`);
+    console.log(`- Current time: ${currentTime.toLocaleString()}`);
+    console.log(`- Expected end: ${new Date(sessionStart.getTime() + MINING_CONFIG.MAX_DURATION).toLocaleString()}`);
+
+    // Only end session if it's truly past the max duration
+    if (sessionDuration >= MINING_CONFIG.MAX_DURATION) {
+      console.log(`Session for user ${session.userId} reached max duration of 3 hours`);
       await this.finalizeSession(session);
       return;
     }
 
-    // Regular update
-    const minutesSinceLastUpdate = Math.floor((currentTime - lastUpdated) / (1000 * 60));
+    // Regular update if enough time has passed
     if (minutesSinceLastUpdate >= MINING_CONFIG.UPDATE_INTERVAL) {
       await this.updateSessionPoints(session, minutesSinceLastUpdate);
     }
@@ -99,17 +130,26 @@ class MiningService {
     const lastUpdated = session.lastUpdated || session.startTime;
     const minutesSinceLastUpdate = Math.floor((sessionEndTime - lastUpdated) / (1000 * 60));
 
-    if (minutesSinceLastUpdate >= MINING_CONFIG.UPDATE_INTERVAL) {
+    console.log(`Finalizing session for user ${session.userId}:`);
+    console.log(`- Total session duration: ${Math.floor((sessionEndTime - session.startTime) / (1000 * 60))} minutes`);
+    console.log(`- Minutes since last update: ${minutesSinceLastUpdate}`);
+    console.log(`- Current points before final update: ${session.points.toFixed(2)}`);
+    console.log(`- Session start: ${session.startTime.toLocaleString()}`);
+    console.log(`- Session end: ${sessionEndTime.toLocaleString()}`);
+
+    if (minutesSinceLastUpdate > 0) {
       const pointsToAdd = this.calculatePoints(session, minutesSinceLastUpdate);
       session.points += pointsToAdd;
       await this.updateRewards(session.userId, pointsToAdd);
+      
+      console.log(`Final update: +${pointsToAdd.toFixed(2)} points (${minutesSinceLastUpdate} minutes)`);
     }
 
     session.endTime = sessionEndTime;
     session.lastUpdated = sessionEndTime;
     await session.save();
 
-    console.log(`Finalized mining session for user ${session.userId}`);
+    console.log(`Session finalized with total points: ${session.points.toFixed(2)}`);
   }
 
   static async updateSessionPoints(session, minutesSinceLastUpdate) {
@@ -122,18 +162,52 @@ class MiningService {
 
     await this.updateRewards(session.userId, pointsToAdd);
     
-    console.log(`Updated session for user ${session.userId}: +${pointsToAdd.toFixed(2)} points`);
+    console.log(`Updated session for user ${session.userId}:`);
+    console.log(`- Added ${pointsToAdd.toFixed(2)} points`);
+    console.log(`- Processed ${minutesSinceLastUpdate} minutes`);
+    console.log(`- New total: ${session.points.toFixed(2)} points`);
   }
 
   static calculatePoints(session, minutes) {
-    const rate = session.isBoosted ? MINING_CONFIG.BOOSTED_RATE : MINING_CONFIG.NORMAL_RATE;
-    return rate * Math.min(minutes, MINING_CONFIG.UPDATE_INTERVAL);
+    const sessionStart = new Date(session.startTime);
+    const boostStart = session.boostStartTime ? new Date(session.boostStartTime) : null;
+    
+    let totalPoints = 0;
+    let normalMinutes = 0;
+    let boostedMinutes = 0;
+    
+    // Calculate points for each minute
+    for (let i = 0; i < minutes; i++) {
+      const currentMinute = new Date(sessionStart.getTime() + i * 60 * 1000);
+      
+      if (!boostStart || currentMinute < boostStart) {
+        totalPoints += MINING_CONFIG.NORMAL_RATE;
+        normalMinutes++;
+      } else {
+        totalPoints += MINING_CONFIG.BOOSTED_RATE;
+        boostedMinutes++;
+      }
+    }
+    
+    console.log(`Point calculation for ${minutes} minutes:`);
+    console.log(`- Normal rate minutes: ${normalMinutes} (${(normalMinutes * MINING_CONFIG.NORMAL_RATE).toFixed(2)} points)`);
+    console.log(`- Boosted rate minutes: ${boostedMinutes} (${(boostedMinutes * MINING_CONFIG.BOOSTED_RATE).toFixed(2)} points)`);
+    
+    return totalPoints;
   }
 
   static async updateAllSessions() {
     try {
       const currentTime = new Date();
-      const activeSessions = await Mining.find({ endTime: { $exists: false } });
+      const activeSessions = await Mining.find({ 
+        endTime: { $exists: false },
+        startTime: { 
+          $gte: new Date(currentTime.getTime() - MINING_CONFIG.MAX_DURATION - MINING_CONFIG.BUFFER_TIME)
+        }
+      });
+
+      console.log(`Found ${activeSessions.length} active sessions to update`);
+      console.log(`Current time: ${currentTime.toLocaleString()}`);
 
       for (const session of activeSessions) {
         await this.processSession(session, currentTime);
